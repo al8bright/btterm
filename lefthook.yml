@@ -1,0 +1,25 @@
+# git 훅(AGENTS.md §2). CI가 없으므로 커밋·push 전 로컬 검사가 유일한 게이트다. --no-verify 금지.
+# 도구는 client/node_modules에 있다. 앱 파일은 client/ 기준으로 검사하고, 비밀 스캔은 저장소 전체를 본다.
+commit-msg:
+  jobs:
+    - name: 커밋 메시지 형식
+      run: node client/scripts/check-commit-msg.mjs {1}
+
+pre-commit:
+  parallel: true
+  jobs:
+    - name: eslint(스테이징 파일)
+      root: client/
+      glob: '*.{ts,tsx,js,mjs,cjs}'
+      run: pnpm exec eslint --max-warnings 0 {staged_files}
+    - name: prettier(스테이징 파일)
+      root: client/
+      glob: '*.{ts,tsx,js,mjs,cjs,json,css,yml,yaml}'
+      run: pnpm exec prettier --check {staged_files}
+    - name: 비밀 스캔(스테이징 파일)
+      run: node client/node_modules/secretlint/bin/secretlint.js --secretlintrc client/.secretlintrc.json --secretlintignore client/.secretlintignore {staged_files}
+
+pre-push:
+  jobs:
+    - name: pnpm verify
+      run: pnpm -C client verify

@@ -1,0 +1,27 @@
+node_modules/
+dist/
+out/
+release/
+coverage/
+*.log
+.env
+.env.*
+.DS_Store
+Thumbs.db
+ehthumbs.db
+desktop.ini
+*.dmp
+*.tmp
+*.swp
+.omc/
+.claude/settings.local.json
+.idea/
+.vscode/*
+!.vscode/extensions.json
+test-results/
+playwright-report/
+*.tsbuildinfo
+.vite/
+
+# 루트는 의존성이 없다. pnpm이 루트에서 명령을 돌릴 때 만드는 빈 lockfile은 쓰지 않는다(lockfile은 client/)
+/pnpm-lock.yaml

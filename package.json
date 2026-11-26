@@ -1,0 +1,38 @@
+{
+  "name": "btterm",
+  "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/al8bright/btterm.git"
+  },
+  "homepage": "https://github.com/al8bright/btterm#readme",
+  "bugs": {
+    "url": "https://github.com/al8bright/btterm/issues"
+  },
+  "packageManager": "pnpm@11.1.3",
+  "//": "앱(TypeScript) 워크스페이스는 client/. 설치: pnpm run bootstrap. 나머지 명령은 client로 넘긴다",
+  "scripts": {
+    "bootstrap": "pnpm -C client install --frozen-lockfile && pnpm -C client exec lefthook install",
+    "dev": "pnpm -C client dev",
+    "lint": "pnpm -C client lint",
+    "format": "pnpm -C client format",
+    "format:check": "pnpm -C client format:check",
+    "typecheck": "pnpm -C client typecheck",
+    "test": "pnpm -C client test",
+    "test:integration": "pnpm -C client test:integration",
+    "test:e2e": "pnpm -C client test:e2e",
+    "test:perf": "pnpm -C client test:perf",
+    "verify": "pnpm -C client verify",
+    "verify:full": "pnpm -C client verify:full",
+    "check:ac": "pnpm -C client check:ac",
+    "check:secrets": "pnpm -C client check:secrets",
+    "check:licenses": "pnpm -C client check:licenses",
+    "check:fuses": "pnpm -C client check:fuses",
+    "package:win": "pnpm -C client package:win",
+    "package:mac": "pnpm -C client package:mac",
+    "smoke:packaged": "pnpm -C client smoke:packaged",
+    "release": "pnpm -C client release",
+    "icons": "pnpm -C client icons"
+  }
+}

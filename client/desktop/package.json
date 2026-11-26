@@ -1,0 +1,42 @@
+{
+  "name": "@btterm/desktop",
+  "version": "0.1.1",
+  "private": true,
+  "license": "MIT",
+  "author": "Ethan",
+  "description": "btterm - SSH 통합 클라이언트",
+  "main": "./out/main/index.js",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.web.json && tsc -p tsconfig.e2e.json",
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "build:e2e": "electron-vite build --mode e2e",
+    "build:win": "node ../scripts/package-win.mjs",
+    "build:mac": "node ../scripts/package-mac.mjs",
+    "test:e2e": "playwright test",
+    "test:perf": "playwright test -c playwright.perf.config.ts"
+  },
+  "dependencies": {
+    "ssh2": "1.17.0"
+  },
+  "devDependencies": {
+    "@btterm/core": "workspace:*",
+    "@btterm/ui": "workspace:*",
+    "@playwright/test": "^1.64.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@types/ssh2": "^1.15.6",
+    "@vitejs/plugin-react": "^6.1.2",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/addon-unicode11": "^0.9.0",
+    "@xterm/addon-webgl": "^0.19.0",
+    "@xterm/headless": "^6.0.0",
+    "@xterm/xterm": "^6.0.0",
+    "electron": "44.9.0",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^6.0.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "vite": "^8.3.4"
+  }
+}

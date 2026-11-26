@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- btterm 앱 아이콘(32px 이상, DESIGN §2.8). 바꾸면 pnpm icons로 icon.ico·icon.png를 다시 만든다 -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5AA6FF"/>
+      <stop offset="1" stop-color="#2F7FE8"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#tile)"/>
+  <g fill="none" stroke="#0B0D10" stroke-width="24" stroke-linecap="round" transform="translate(-5 4)">
+    <path d="M60 58 V184"/>
+    <circle cx="92" cy="152" r="32"/>
+    <path d="M176 68 V166 Q176 190 200 190"/>
+    <path d="M162 106 H206"/>
+  </g>
+</svg>

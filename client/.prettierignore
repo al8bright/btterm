@@ -1,0 +1,10 @@
+node_modules
+dist
+out
+release
+coverage
+pnpm-lock.yaml
+docs/mockup
+*.md
+test-results
+release

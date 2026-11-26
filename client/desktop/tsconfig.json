@@ -1,0 +1,16 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": ["node"]
+  },
+  "include": [
+    "src/main",
+    "src/session-host",
+    "src/platform",
+    "test",
+    "electron.vite.config.ts",
+    "vitest.config.ts",
+    "vitest.integration.config.ts"
+  ]
+}

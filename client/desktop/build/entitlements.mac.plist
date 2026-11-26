@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <!-- V8 JIT -->
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <!-- ad-hoc 서명은 Team ID가 없어 Electron 프레임워크를 라이브러리 검증이 거부한다.
+         DYLD 환경 변수 허용(allow-dyld-environment-variables)은 주지 않는다(보안 리뷰 M-2) -->
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+  </dict>
+</plist>

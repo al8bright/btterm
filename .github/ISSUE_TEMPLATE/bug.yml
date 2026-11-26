@@ -1,0 +1,46 @@
+name: 버그 제보
+description: 직접 빌드한 btterm에서 겪은 버그를 알린다
+body:
+  - type: markdown
+    attributes:
+      value: |
+        보안 문제는 여기에 쓰지 말고 [비공개 취약점 제보](https://github.com/al8bright/btterm/security/advisories/new)로 보낸다.
+        로그를 올릴 때는 호스트 이름·IP·계정명·사용자 폴더 경로를 지우고 필요한 줄만 붙인다.
+        데이터 폴더의 파일(서버 목록, 비밀 보관소, known_hosts, snapshots)은 첨부하지 않는다.
+  - type: input
+    id: version
+    attributes:
+      label: 커밋 해시 또는 버전
+      placeholder: 예) 0.1.1 또는 git rev-parse --short HEAD 결과
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: OS
+      placeholder: 예) Windows 11 24H2 x64, macOS 15 (Apple Silicon)
+    validations:
+      required: true
+  - type: checkboxes
+    id: self-built
+    attributes:
+      label: 빌드
+      options:
+        - label: 이 저장소의 소스에서 직접 빌드했다(다른 곳에서 받은 설치 파일이 아니다)
+          required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 재현 절차
+      placeholder: |
+        1. ...
+        2. ...
+        기대한 결과와 실제 결과
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: 로그 발췌(선택)
+      description: 호스트·IP·계정명·사용자 폴더 경로를 지운 뒤 관련된 줄만 붙인다. 비밀번호·키는 절대 넣지 않는다.
+      render: text

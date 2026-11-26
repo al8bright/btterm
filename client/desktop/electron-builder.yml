@@ -1,0 +1,47 @@
+appId: dev.btterm.app
+productName: btterm
+directories:
+  output: release
+files:
+  - out/**
+  - package.json
+asar: true
+# cpu-features 등 선택적 네이티브 모듈을 빌드하지 않는다(AGENTS §7). ssh2는 순수 JS로 동작한다.
+npmRebuild: false
+win:
+  target: nsis
+mac:
+  # 본인 맥에서 설치 파일로 실행(결정 M2). Apple Silicon + Intel 하나로, 공증 없는 ad-hoc 서명
+  target:
+    - target: dmg
+      arch: universal
+  identity: '-'
+  # hardened runtime으로 DYLD 주입·디버거 연결을 막는다(보안 리뷰 M-2). ad-hoc 서명은 Team ID가 없어
+  # 라이브러리 검증만 엔타이틀먼트로 끈다. DYLD 환경 변수 허용은 주지 않는다
+  hardenedRuntime: true
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  category: public.app-category.developer-tools
+dmg:
+  artifactName: btterm-${version}-universal.${ext}
+nsis:
+  # 설치 파일 이름을 버전만 바뀌게 고정한다(SHA256SUMS.txt와 맞춘다)
+  artifactName: btterm-Setup-${version}.${ext}
+  oneClick: false
+  # per-user 설치라 권한 상승 도우미(elevate.exe)가 필요 없다(보안 리뷰 M1-1)
+  packElevateHelper: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+# 자동 업데이트 없음(2026-11-26 제거). publish를 비워 두면 electron-builder가 git 원격에서 GitHub 공급자를
+# 추측해 app-update.yml을 넣으므로 null로 고정한다.
+publish: null
+# SEC-7: 패키징 때 위험한 Electron 기능을 끈다. `pnpm check:fuses`로 결과를 확인한다.
+electronFuses:
+  runAsNode: false
+  enableCookieEncryption: true
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true
+  loadBrowserProcessSpecificV8Snapshot: false
+  grantFileProtocolExtraPrivileges: false

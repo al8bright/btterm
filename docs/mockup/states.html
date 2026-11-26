@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>상태 화면 목업</title>
+    <style>
+      :root {
+        --surface-base: #0f1115;
+        --surface-chrome: #13161b;
+        --surface-panel: #161a20;
+        --surface-raised: #1e232b;
+        --surface-overlay: #0b0d10;
+        --border-subtle: #262b33;
+        --border-control: #5f6874;
+        --text-primary: #e6e8eb;
+        --text-secondary: #c9ced6;
+        --text-muted: #9aa3ae;
+        --accent: #4c9bff;
+        --accent-on: #0b0d10;
+        --accent-subtle-bg: #1b2a40;
+        --accent-subtle-fg: #cfe3ff;
+        --warning: #f5a524;
+        --danger-strong-bg: #3a1d20;
+        --danger-subtle-fg: #ffd7d7;
+        --danger-border: #5a2a2e;
+      }
+      body {
+        margin: 0;
+        background: var(--surface-base);
+        color: var(--text-primary);
+        font: 13px 'IBM Plex Sans KR', system-ui, sans-serif;
+      }
+      nav {
+        padding: 8px 16px;
+        background: var(--surface-chrome);
+        font-size: 12px;
+      }
+      nav a {
+        color: #7db5ff;
+      }
+      main {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(460px, 1fr));
+        gap: 24px;
+        padding: 24px;
+      }
+      section h2 {
+        margin: 0 0 4px;
+        font-size: 15px;
+      }
+      section p.desc {
+        margin: 0 0 12px;
+        color: var(--text-muted);
+        font-size: 12px;
+      }
+      .frame {
+        position: relative;
+        height: 300px;
+        overflow: hidden;
+        border: 1px solid var(--border-subtle);
+        border-radius: 10px;
+        background: var(--surface-overlay);
+      }
+      .tabbar {
+        display: flex;
+        height: 34px;
+        background: var(--surface-chrome);
+        border-bottom: 1px solid var(--border-subtle);
+      }
+      .tab {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 14px;
+        background: var(--surface-overlay);
+        box-shadow: inset 0 2px 0 var(--accent);
+      }
+      .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        border: 2px solid var(--warning);
+        box-sizing: border-box;
+      }
+      .dot.off {
+        border: 1.5px solid var(--text-muted);
+      }
+      .banner {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 8px 16px;
+        border-bottom: 1px solid var(--border-subtle);
+        background: var(--accent-subtle-bg);
+        color: var(--accent-subtle-fg);
+      }
+      .banner.error {
+        background: var(--danger-strong-bg);
+        color: var(--danger-subtle-fg);
+        border-bottom-color: var(--danger-border);
+      }
+      .btn {
+        margin-left: auto;
+        height: 26px;
+        padding: 0 12px;
+        border: 1px solid var(--border-control);
+        border-radius: 8px;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+      }
+      .btn.primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: var(--accent-on);
+        font-weight: 600;
+        margin-left: 0;
+      }
+      pre {
+        margin: 0;
+        padding: 12px 16px;
+        color: #d5dae1;
+        font: 12px 'JetBrains Mono', monospace;
+        opacity: 0.7;
+      }
+      .status {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        height: 26px;
+        padding: 0 14px;
+        background: var(--surface-chrome);
+        border-top: 1px solid var(--border-subtle);
+        color: var(--text-muted);
+        font-size: 12px;
+      }
+      .sidebar {
+        width: 300px;
+        height: 100%;
+        background: var(--surface-chrome);
+        border-right: 1px solid var(--border-subtle);
+      }
+      .sidebar .head {
+        display: flex;
+        justify-content: space-between;
+        padding: 10px 14px;
+        color: var(--text-muted);
+        font-weight: 600;
+      }
+      .sidebar input {
+        margin: 0 14px 8px;
+        width: calc(100% - 28px);
+        height: 30px;
+        box-sizing: border-box;
+        background: var(--surface-base);
+        border: 1px solid var(--border-control);
+        border-radius: 6px;
+        color: var(--text-muted);
+        padding: 0 10px;
+      }
+      .empty {
+        padding: 0 14px;
+        color: var(--text-muted);
+      }
+      .overlay {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        background: rgb(11 13 16 / 70%);
+      }
+      .dialog {
+        width: 420px;
+        padding: 20px;
+        background: var(--surface-panel);
+        border: 1px solid var(--border-subtle);
+        border-radius: 12px;
+      }
+      .dialog h3 {
+        margin: 0 0 10px;
+        font-size: 15px;
+      }
+      .dialog p {
+        margin: 0 0 14px;
+        color: var(--text-secondary);
+        line-height: 1.6;
+        font-size: 12px;
+      }
+      .dialog code {
+        font: 11px 'JetBrains Mono', monospace;
+        color: var(--accent-subtle-fg);
+      }
+      .actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+      }
+      .actions .btn {
+        margin: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <nav><a href="index.html">← 목업 목록</a></nav>
+    <main>
+      <section>
+        <h2>끊김 → 자동 재접속</h2>
+        <p class="desc">
+          F2.5·AC12. 터미널 내용은 그대로 두고 위에 안내 띠, 상태바에 다음 시도까지 남은 시간.
+        </p>
+        <div class="frame">
+          <div class="tabbar"><span class="tab"><span class="dot"></span>web-01</span></div>
+          <div class="banner">연결이 끊겨 다시 연결하는 중입니다</div>
+          <pre>
+ubuntu@web-01:~$ tail -f /var/log/nginx/access.log
+10.0.0.21 - - [20/Oct/2026:10:12:01] "GET / HTTP/1.1" 200
+          </pre>
+          <div class="status">
+            <span class="dot"></span><b style="color: var(--text-primary)">web-01</b> 재접속 중 · 4초 후
+            재시도 (3회)
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>연결 실패</h2>
+        <p class="desc">F6.5. 오류 코드별 메시지 + 다음 행동(다시 연결). 인증 실패는 자동 재시도하지 않는다.</p>
+        <div class="frame">
+          <div class="tabbar"><span class="tab"><span class="dot off"></span>db-01</span></div>
+          <div class="banner error">
+            인증에 실패했습니다 <button class="btn">다시 연결</button>
+          </div>
+          <div class="status"><span class="dot off"></span><b style="color: var(--text-primary)">db-01</b> 실패</div>
+        </div>
+      </section>
+
+      <section>
+        <h2>빈 서버 트리</h2>
+        <p class="desc">F1.4. 처음 실행하면 ~/.ssh/config 가져오기를 바로 제안한다.</p>
+        <div class="frame" style="display: flex">
+          <div class="sidebar">
+            <div class="head"><span>서버</span><span>＋ ▢ ⚿</span></div>
+            <input value="서버 검색" readonly />
+            <div class="empty">
+              <p>저장된 서버가 없습니다.</p>
+              <button class="btn" style="margin: 0">ssh_config 가져오기</button>
+            </div>
+          </div>
+          <div style="flex: 1; display: grid; place-content: center; text-align: center; color: var(--text-muted)">
+            <strong style="color: var(--text-primary)">연결된 세션이 없습니다</strong>
+            <span>위에서 user@host 를 입력해 연결하세요.</span>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>셸 통합 동의</h2>
+        <p class="desc">F4.5·D10. 원격에 무엇을 바꾸는지 그대로 보여 주고 동의를 받는다. 기본 포커스는 취소.</p>
+        <div class="frame">
+          <div class="overlay">
+            <div class="dialog" role="alertdialog">
+              <h3>터미널 폴더 따라가기를 켤까요?</h3>
+              <p>
+                원격 서버에 <code>~/.config/btterm/shell.sh</code> 를 만들고 <code>~/.bashrc</code>(있으면
+                <code>~/.zshrc</code>, 로그인 파일)에 <code># &gt;&gt;&gt; btterm &gt;&gt;&gt;</code> 표시로 감싼 한 줄을
+                추가합니다. 바꾸기 전 원본은 <code>.btterm-backup</code> 으로 백업하며, 언제든 제거할 수 있습니다.
+              </p>
+              <div class="actions">
+                <button class="btn primary">셸 통합 설치</button>
+                <button class="btn">취소</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
