@@ -40,11 +40,17 @@ export interface SftpSession {
   /** 작은 파일(rc 등) 전체 읽기. 없으면 SftpError('missing') */
   readFile(path: string): Promise<Uint8Array>;
   writeFile(path: string, data: Uint8Array): Promise<void>;
+  /**
+   * 배타 생성(이미 있으면 SftpError('exists'), 링크도 따라가지 않는다). 처음부터 mode(0o777 안)로 만들고
+   * 서버 umask와 상관없이 그 권한으로 맞춘다. 비밀이 든 rc의 백업·임시 파일용(F4.5)
+   */
+  createFile(path: string, data: Uint8Array, mode: number): Promise<void>;
   /** 끝에 덧붙인다. 없으면 mode로 만들고, 있으면 권한을 그대로 둔다(TR5 authorized_keys) */
   appendFile(path: string, data: Uint8Array, mode: number): Promise<void>;
   /**
    * 임시 파일에 쓴 뒤 바꿔 넣는다. 쓰는 중 끊겨도 원본이 잘린 채 남지 않는다(rc 파일 등).
-   * 심볼릭 링크면 링크가 가리키는 파일을 바꾼다.
+   * 심볼릭 링크면 링크가 가리키는 파일을 바꾼다. 권한은 원래 파일(링크면 대상)의 권한 비트를 그대로 두고,
+   * 새 파일은 0o600으로 만든다.
    */
   writeFileAtomic(path: string, data: Uint8Array): Promise<void>;
   /** offset: 이어받기 시작 지점(TR2) */

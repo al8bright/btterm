@@ -15,6 +15,8 @@ const env = {
 describeSshTransportContract('ssh2 + Docker sshd', async () => ({
   transport: new Ssh2Transport(),
   ...env,
+  // linuxserver/openssh-server는 ssh-keygen -A로 세 종류를 모두 만든다
+  hostKeyTypes: ['ssh-ed25519', 'ecdsa-sha2-nistp256', 'ssh-rsa'],
 }));
 
 describe('Ssh2Transport 고유 동작', () => {

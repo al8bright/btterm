@@ -1,6 +1,8 @@
 import ssh2 from 'ssh2';
-import type { ClientChannel, ConnectConfig, SFTPWrapper } from 'ssh2';
+import ssh2Constants from 'ssh2/lib/protocol/constants.js';
+import type { ClientChannel, ConnectConfig, ServerHostKeyAlgorithm, SFTPWrapper } from 'ssh2';
 import {
+  preferKnownHostKeyAlgorithms,
   SshError,
   type AuthHooks,
   type AuthMethod,
@@ -22,6 +24,25 @@ import { Ssh2Sftp } from './Ssh2Sftp';
 const { Client } = ssh2;
 
 export { describeHostKey };
+
+/**
+ * ssh2가 이 런타임에서 쓰는 호스트 키 알고리즘 기본 목록(lib/protocol/constants.js DEFAULT_SERVER_HOST_KEY).
+ * 하드코딩하지 않고 실행 시점 값을 읽는다: ssh2는 런타임(Electron 포함)이 Ed25519를 지원할 때만 넣으므로,
+ * 지원하지 않는 알고리즘을 넘겨 모든 접속이 실패하는 일이 없게 한다.
+ */
+export const SSH2_DEFAULT_SERVER_HOST_KEY: readonly ServerHostKeyAlgorithm[] =
+  ssh2Constants.DEFAULT_SERVER_HOST_KEY as ServerHostKeyAlgorithm[];
+
+/**
+ * SEC-3: 이미 알려진 종류의 호스트 키를 서버가 먼저 고르게 한다. 알려진 키와 다른 종류는 차단하므로
+ * 정상 서버가 오탐으로 막히지 않게 하는 장치다. 알려진 종류가 없으면 undefined(ssh2 기본값).
+ */
+export function serverHostKeyAlgorithms(
+  knownKeyTypes: readonly string[] | undefined,
+): ServerHostKeyAlgorithm[] | undefined {
+  const ordered = preferKnownHostKeyAlgorithms(SSH2_DEFAULT_SERVER_HOST_KEY, knownKeyTypes ?? []);
+  return ordered ? (ordered as ServerHostKeyAlgorithm[]) : undefined;
+}
 
 /** ssh2 기반 SshTransport(D6). session host(utilityProcess)에서만 import한다(AGENTS §3). */
 export class Ssh2Transport implements SshTransport {
@@ -63,7 +84,9 @@ export class Ssh2Transport implements SshTransport {
         });
       };
 
+      const serverHostKey = serverHostKeyAlgorithms(options.knownHostKeyTypes);
       const config: ConnectConfig = {
+        ...(serverHostKey ? { algorithms: { serverHostKey } } : {}),
         host: options.host,
         port: options.port,
         username: options.username,

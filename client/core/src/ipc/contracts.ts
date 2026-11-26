@@ -19,6 +19,21 @@ const SessionId = z.string().min(1).max(64);
 const Bytes = z.custom<Uint8Array>((value) => value instanceof Uint8Array, 'Uint8Array가 아닙니다');
 const Host = z.string().min(1).max(255);
 const Port = z.number().int().min(1).max(65535);
+/** 호스트 키 종류(ssh-ed25519 등). 인증서 형식(…-cert-v01@openssh.com)도 64자 안에 든다 */
+const KeyType = z.string().min(1).max(64);
+/** known_hosts에 쓰거나 연결 설정에 넘길 수 있는 키 종류 형식(SEC-3). 공백·대문자·제어문자 없음 */
+export const KNOWN_HOST_KEY_TYPE = /^[a-z0-9@.-]{1,64}$/;
+/** 경계를 넘는 호스트 키(base64)와 지문의 길이 상한. session host는 이보다 긴 키를 묻지 않고 거부한다 */
+export const HOST_KEY_MAX_LENGTH = 16 * 1024;
+export const FINGERPRINT_MAX_LENGTH = 128;
+const Fingerprint = z.string().min(1).max(FINGERPRINT_MAX_LENGTH);
+/** keyboard-interactive 문자열 상한. session host가 넘기기 전에 이 길이로 자른다 */
+export const KBD_NAME_MAX = 256;
+export const KBD_INSTRUCTIONS_MAX = 4096;
+export const KBD_PROMPT_MAX = 1024;
+const KbdPromptsSchema = z
+  .array(z.object({ prompt: z.string().max(KBD_PROMPT_MAX), echo: z.boolean() }))
+  .max(16);
 
 export const SessionStateSchema = z.enum([
   'connecting',
@@ -104,6 +119,42 @@ export const HostFilesOpSchema = z.discriminatedUnion('kind', [
   }),
 ]);
 export type HostFilesOp = z.infer<typeof HostFilesOpSchema>;
+
+/** 원격 목록 한 항목(F4.1). 이름은 원격이 정하므로 신뢰하지 않는다(SEC-5): 형식·길이만 통과시킨다 */
+const RemoteEntrySchema = z.strictObject({
+  name: z.string().min(1).max(1024),
+  type: z.enum(['file', 'dir', 'link', 'other']),
+  size: z.number().min(0).max(Number.MAX_SAFE_INTEGER),
+  mtimeMs: z.number(),
+  mode: z.number().int().min(0).max(0o7777),
+});
+export const FilesListResultSchema = z.strictObject({
+  path: RemotePath,
+  entries: z.array(RemoteEntrySchema).max(100_000),
+});
+export const ShellIntegrationStatusSchema = z.strictObject({
+  installed: z.boolean(),
+  rcFiles: z.array(z.string().min(1).max(64)).max(16),
+  loginCovered: z.boolean().nullable(),
+});
+export const InstallKeyResultSchema = z.strictObject({ added: z.boolean() });
+
+const FILES_OP_RESULT_SCHEMAS: Record<HostFilesOp['kind'], z.ZodType> = {
+  list: FilesListResultSchema,
+  mkdir: z.null(),
+  rename: z.null(),
+  remove: z.null(),
+  chmod: z.null(),
+  shellStatus: ShellIntegrationStatusSchema,
+  shellInstall: ShellIntegrationStatusSchema,
+  shellUninstall: ShellIntegrationStatusSchema,
+  installKey: InstallKeyResultSchema,
+};
+
+/** session host가 돌려준 파일 작업 결과의 스키마. main이 renderer로 넘기기 전에 검증한다(AGENTS §3) */
+export function filesOpResultSchema(kind: HostFilesOp['kind']): z.ZodType {
+  return FILES_OP_RESULT_SCHEMAS[kind];
+}
 
 export const TransferJobSchema = z.object({
   id: Id,
@@ -279,9 +330,13 @@ export const PromptSchema = z.discriminatedUnion('kind', [
     verdict: z.enum(['unknown', 'mismatch']),
     host: Host,
     port: Port,
-    keyType: z.string(),
-    fingerprint: z.string(),
-    knownFingerprints: z.array(z.string()).optional(),
+    keyType: KeyType,
+    fingerprint: Fingerprint,
+    knownFingerprints: z.array(Fingerprint).max(32).optional(),
+    /** mismatch 사유(SEC-3). other-type-known: 다른 종류의 키만 알려진 호스트가 이 종류를 내밀었다 */
+    mismatchReason: z.enum(['key-changed', 'other-type-known']).optional(),
+    /** 이 호스트에 저장된 키 종류(other-type-known일 때 보여 준다) */
+    knownKeyTypes: z.array(KeyType).max(32).optional(),
   }),
   z.object({ kind: z.literal('password'), host: Host, username: z.string() }),
   z.object({ kind: z.literal('passphrase'), keyLabel: z.string() }),
@@ -293,9 +348,9 @@ export const PromptSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('keyboardInteractive'),
     host: Host,
-    name: z.string(),
-    instructions: z.string(),
-    prompts: z.array(z.object({ prompt: z.string(), echo: z.boolean() })).max(16),
+    name: z.string().max(KBD_NAME_MAX),
+    instructions: z.string().max(KBD_INSTRUCTIONS_MAX),
+    prompts: KbdPromptsSchema,
   }),
 ]);
 export type Prompt = z.infer<typeof PromptSchema>;
@@ -442,6 +497,8 @@ export const MainToHostControlSchema = z.discriminatedUnion('type', [
     port: Port,
     username: z.string().min(1).max(64),
     keepaliveSec: z.number().int().min(0).max(3600),
+    /** 이 호스트에 이미 저장된 키 종류. 서버가 이 종류를 먼저 고르게 한다(SEC-3) */
+    knownHostKeyTypes: z.array(z.string().regex(KNOWN_HOST_KEY_TYPE)).max(16).optional(),
     auth: z.array(
       z.discriminatedUnion('kind', [
         z.object({ kind: z.literal('password'), password: z.string() }),
@@ -511,9 +568,9 @@ export const HostToMainControlSchema = z.discriminatedUnion('type', [
     sessionId: SessionId,
     host: Host,
     port: Port,
-    keyType: z.string(),
-    key: z.string(),
-    fingerprint: z.string(),
+    keyType: KeyType,
+    key: z.string().min(1).max(HOST_KEY_MAX_LENGTH),
+    fingerprint: Fingerprint,
   }),
   z.object({
     type: z.literal('keyGenerated'),
@@ -535,9 +592,12 @@ export const HostToMainControlSchema = z.discriminatedUnion('type', [
     result: z.discriminatedUnion('ok', [
       z.object({
         ok: z.literal(true),
-        keyType: z.string(),
-        publicKey: z.string(),
-        fingerprint: z.string(),
+        keyType: KeyType,
+        publicKey: z
+          .string()
+          .min(1)
+          .max(16 * 1024),
+        fingerprint: Fingerprint,
         encrypted: z.boolean(),
       }),
       z.object({
@@ -550,9 +610,9 @@ export const HostToMainControlSchema = z.discriminatedUnion('type', [
     type: z.literal('kbdPrompt'),
     requestId: z.string(),
     sessionId: SessionId,
-    name: z.string(),
-    instructions: z.string(),
-    prompts: z.array(z.object({ prompt: z.string(), echo: z.boolean() })).max(16),
+    name: z.string().max(KBD_NAME_MAX),
+    instructions: z.string().max(KBD_INSTRUCTIONS_MAX),
+    prompts: KbdPromptsSchema,
   }),
   z.object({
     type: z.literal('historyResult'),
@@ -569,6 +629,7 @@ export const HostToMainControlSchema = z.discriminatedUnion('type', [
       type: z.literal('filesResult'),
       requestId: z.string(),
       ok: z.literal(true),
+      /** 작업 종류별 형식은 main이 filesOpResultSchema로 검증한 뒤 renderer로 넘긴다 */
       result: z.unknown(),
     }),
     z.object({
@@ -597,6 +658,10 @@ export const RENDERER_BOUND_SCHEMAS = {
   HostToRendererFrameSchema,
   HistoryResultSchema,
   StatsResultSchema,
+  /** files.op 응답(작업 종류별 결과) */
+  FilesListResultSchema,
+  ShellIntegrationStatusSchema,
+  InstallKeyResultSchema,
 } as const;
 
 // credentialId·credentials처럼 "참조"를 뜻하는 이름은 비밀이 아니다. 비밀 값 자체를 뜻하는 이름만 막는다.

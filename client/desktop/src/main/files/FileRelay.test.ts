@@ -57,6 +57,44 @@ describe('FileRelay', () => {
     expect(await pending).toEqual({ ok: true, result: { path: '/home/u', entries: [] } });
   });
 
+  it('F4 session host 결과는 작업 종류별 스키마로 검증하고, 형식이 다르면 renderer로 넘기지 않는다', async () => {
+    const { relay, owner, posted } = setup();
+    const run = async (
+      op: Extract<MainToHostControl, { type: 'files' }>['op'],
+      result: unknown,
+    ) => {
+      const pending = relay.handle(owner, { type: 'files.op', sessionId: 's1', op } as never);
+      const sentOp = posted.at(-1) as Extract<MainToHostControl, { type: 'files' }>;
+      await relay.handleHost({
+        type: 'filesResult',
+        requestId: sentOp.requestId,
+        ok: true,
+        result,
+      });
+      return pending;
+    };
+    const entry = { name: 'a', type: 'file', size: 1, mtimeMs: 0, mode: 0o644 };
+    expect(await run({ kind: 'list', path: '.' }, { path: '/h', entries: [entry] })).toEqual({
+      ok: true,
+      result: { path: '/h', entries: [entry] },
+    });
+    expect(
+      await run({ kind: 'list', path: '.' }, { path: '/h', entries: [{ ...entry, mode: -1 }] }),
+    ).toEqual({ ok: false, error: 'invalid-result' });
+    expect(
+      await run({ kind: 'list', path: '.' }, { html: '<img src=x onerror=alert(1)>' }),
+    ).toEqual({ ok: false, error: 'invalid-result' });
+    expect(await run({ kind: 'mkdir', path: 'd' }, null)).toEqual({ ok: true, result: null });
+    expect(await run({ kind: 'mkdir', path: 'd' }, { leaked: 'x' })).toEqual({
+      ok: false,
+      error: 'invalid-result',
+    });
+    expect(await run({ kind: 'shellStatus' }, { installed: 'yes' })).toEqual({
+      ok: false,
+      error: 'invalid-result',
+    });
+  });
+
   it('F7.8 공개키 등록은 세션 주인 창만, host 전용 작업으로 보낸다', async () => {
     const { relay, owner, other, posted } = setup();
     expect(await relay.installKey(other, 's1', 'ssh-ed25519 AAAA')).toEqual({

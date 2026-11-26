@@ -133,6 +133,17 @@ export class FakeSftp implements SftpSession {
     this.#put(path, data);
   }
 
+  async createFile(path: string, data: Uint8Array, mode: number): Promise<void> {
+    const resolved = this.#writable(path);
+    if (this.fs.nodes.has(resolved)) throw new SftpError('exists');
+    this.fs.nodes.set(resolved, {
+      type: 'file',
+      data: data.slice(),
+      mode: mode & 0o777,
+      mtimeMs: 0,
+    });
+  }
+
   async appendFile(path: string, data: Uint8Array, mode: number): Promise<void> {
     const resolved = this.#writable(path);
     const node = this.fs.nodes.get(resolved);
@@ -141,9 +152,14 @@ export class FakeSftp implements SftpSession {
     else this.fs.nodes.set(resolved, { type: 'file', data: data.slice(), mode, mtimeMs: 0 });
   }
 
-  /** 메모리 파일 시스템에서는 한 번에 바뀌므로 그대로 쓴다. */
+  /** 메모리 파일 시스템에서는 한 번에 바뀌므로 그대로 쓴다. 권한은 기존 비트, 새 파일은 600(F4.5) */
   async writeFileAtomic(path: string, data: Uint8Array): Promise<void> {
-    this.#put(path, data);
+    const resolved = this.#writable(path);
+    const existing = this.fs.nodes.get(resolved);
+    const mode = existing ? existing.mode & 0o777 : 0o600;
+    this.fs.nodes.set(resolved, { type: 'file', data: data.slice(), mode, mtimeMs: 0 });
+    // 실제 어댑터처럼 지난번에 남은 임시 파일을 치운다
+    this.fs.nodes.delete(`${resolved}.btterm-tmp`);
   }
 
   #put(path: string, data: Uint8Array): void {

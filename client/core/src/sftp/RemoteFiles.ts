@@ -213,8 +213,24 @@ async function rewrite(
   edit: { text: string; changed: boolean },
 ): Promise<void> {
   if (!edit.changed) return;
-  if (before !== '') await sftp.writeFile(file + BACKUP_SUFFIX, enc(before));
+  if (before !== '') {
+    // 백업은 원본(링크면 대상)과 같은 권한으로 처음부터 배타 생성한다: 600 rc에 든 토큰이
+    // 기본 권한(644) 백업으로 새지 않게(F4.5). 지난 백업은 이름만 지운다(링크면 링크만)
+    const backup = file + BACKUP_SUFFIX;
+    const mode = (await permissionBits(sftp, file)) ?? PRIVATE_FILE_MODE;
+    if (await sftp.stat(backup)) await sftp.removeFile(backup);
+    await sftp.createFile(backup, enc(before), mode);
+  }
   await sftp.writeFileAtomic(file, enc(edit.text));
+}
+
+const PRIVATE_FILE_MODE = 0o600;
+
+/** 파일(링크면 가리키는 파일)의 권한 비트(0o777). 없으면 null */
+async function permissionBits(sftp: SftpSession, path: string): Promise<number | null> {
+  const entry = await sftp.stat(path);
+  const info = entry?.type === 'link' ? await sftp.stat(await sftp.realpath(path)) : entry;
+  return info ? info.mode & 0o777 : null;
 }
 
 /** rc 같은 설정 파일 상한. 이보다 크면 정상적인 rc가 아니다(/dev/zero 링크 등, 보안 리뷰 #5). */

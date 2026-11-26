@@ -14,7 +14,7 @@
 | AC7 | U+I+E | core/sftp/TransferQueue.test.ts, desktop/session-host/files/transferEndpoints.test.ts (U), core/testing/sftpContract.ts via Ssh2Sftp.int.test.ts (I), desktop/e2e/files.e2e.ts (화면 다운로드→업로드 SHA-256) | done | 한글 파일명 SFTP |
 | AC8 | U+E | ui/store/AppStore.test.ts (U), desktop/e2e/terminal.e2e.ts (탭 두 개 분리) | done | 탭 분리 |
 | AC9 | U+I | core/ssh/HostKeyPolicy.test.ts, desktop/session-host/ssh/Ssh2Transport.int.test.ts, desktop/e2e/smoke.e2e.ts | done | 신규 호스트 키 |
-| AC10 | U+I+E | core/ssh/HostKeyPolicy.test.ts, desktop/main/hostkeys/KnownHostsStore.test.ts (U), desktop/e2e/session.e2e.ts (경고·허용 버튼 없음·거부) | done | 호스트 키 불일치 |
+| AC10 | U+I+E | core/ssh/HostKeyPolicy.test.ts, core/ssh/hostKeyAlgorithms.test.ts, desktop/main/hostkeys/KnownHostsStore.test.ts, desktop/main/hostkeys/hostKeyPrompt.test.ts, desktop/session-host/ssh/Ssh2Transport.test.ts (U), SshTransport 계약 테스트(Fake·Docker sshd, I), desktop/e2e/session.e2e.ts (경고·허용 버튼 없음·거부) | done | 호스트 키 불일치 |
 | AC11 | U+I | core/sftp/TransferQueue.test.ts (U), desktop/session-host/files/files.int.test.ts (I: 200MB 업로드 1초 내 취소, 원격 부분 파일 0) | done | 전송 취소 |
 | AC12 | U+I+E | core/session/ReconnectPolicy.test.ts, desktop/main/session/SessionSupervisor.test.ts (U), desktop/session-host/ssh/Ssh2Transport.int.test.ts, desktop/session-host/files/files.int.test.ts (I: toxiproxy 단절 시 감지·전송 실패 ≤ keepalive×3+2초), desktop/e2e/profiles.e2e.ts (자동 재접속) | done | 네트워크 단절 |
 | AC13 | U+E | core/session/HostSession.test.ts, ui/App.test.tsx (U), desktop/e2e/terminal.e2e.ts (서버 쪽 세션 종료) | done | 탭 닫기 정리. SFTP 포함 정리는 1-6에서 재확인 |

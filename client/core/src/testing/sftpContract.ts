@@ -79,6 +79,35 @@ export function describeSftpContract(name: string, createEnv: () => Promise<Sftp
       await env.sftp.removeFile(`${dir}/rc`);
     });
 
+    it('F4.5 createFile은 배타 생성하고 처음부터 주어진 권한으로 만든다(이미 있으면 덮지 않는다)', async () => {
+      await env.sftp.createFile(`${dir}/secret.bak`, enc('TOKEN=1'), 0o600);
+      expect((await env.sftp.stat(`${dir}/secret.bak`))?.mode).toBe(0o600);
+      expect(dec(await env.sftp.readFile(`${dir}/secret.bak`))).toBe('TOKEN=1');
+      await expect(
+        env.sftp.createFile(`${dir}/secret.bak`, enc('other'), 0o644),
+      ).rejects.toMatchObject({ code: expect.stringMatching(/exists|failure/) });
+      expect(dec(await env.sftp.readFile(`${dir}/secret.bak`))).toBe('TOKEN=1');
+      await env.sftp.createFile(`${dir}/script.sh`, enc('x'), 0o750);
+      expect((await env.sftp.stat(`${dir}/script.sh`))?.mode).toBe(0o750);
+      await env.sftp.removeFile(`${dir}/secret.bak`);
+      await env.sftp.removeFile(`${dir}/script.sh`);
+    });
+
+    it('F4.5 원자적 쓰기는 기존 권한(600)을 그대로 두고, 새 파일은 600으로 만든다', async () => {
+      await env.sftp.writeFile(`${dir}/rc600`, enc('export TOKEN=1'));
+      await env.sftp.chmod(`${dir}/rc600`, 0o600);
+      // 지난번에 끊겨 남은 임시 파일이 있어도 쓴다
+      await env.sftp.writeFile(`${dir}/rc600.btterm-tmp`, enc('stale'));
+      await env.sftp.writeFileAtomic(`${dir}/rc600`, enc('export TOKEN=2'));
+      expect((await env.sftp.stat(`${dir}/rc600`))?.mode).toBe(0o600);
+      expect(dec(await env.sftp.readFile(`${dir}/rc600`))).toBe('export TOKEN=2');
+      expect(await env.sftp.stat(`${dir}/rc600.btterm-tmp`)).toBeNull();
+      await env.sftp.writeFileAtomic(`${dir}/new-rc`, enc('x'));
+      expect((await env.sftp.stat(`${dir}/new-rc`))?.mode).toBe(0o600);
+      await env.sftp.removeFile(`${dir}/rc600`);
+      await env.sftp.removeFile(`${dir}/new-rc`);
+    });
+
     it('조각 쓰기·읽기, abort하면 부분 파일이 남지 않는다', async () => {
       const sink = await env.sftp.openWrite(`${dir}/stream.bin`);
       await sink.write(enc('abc'));

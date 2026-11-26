@@ -7,6 +7,8 @@ export interface SshContractEnv {
   port: number;
   username: string;
   password: string;
+  /** 서버가 가진 호스트 키 종류(known_hosts 표기). 알려진 종류 우선 협상(SEC-3)을 검사한다 */
+  hostKeyTypes: string[];
   cleanup?: () => Promise<void> | void;
 }
 
@@ -36,6 +38,27 @@ export function describeSshTransportContract(
         .catch((e: unknown) => e);
       expect(error).toBeInstanceOf(SshError);
       expect((error as SshError).code).toBe('host-key-rejected');
+      await env.cleanup?.();
+    });
+
+    it('SEC-3 AC10 알려진 키 종류를 넘기면 서버는 그 종류의 호스트 키를 제시한다', async () => {
+      const env = await createEnv();
+      expect(env.hostKeyTypes.length).toBeGreaterThan(1);
+      for (const keyType of env.hostKeyTypes) {
+        const seen: string[] = [];
+        const conn = await env.transport.connect(
+          { ...opts(env), knownHostKeyTypes: [keyType] },
+          [{ kind: 'password', password: env.password }],
+          {
+            verifyHostKey: async (key) => {
+              seen.push(key.keyType);
+              return true;
+            },
+          },
+        );
+        conn.end();
+        expect(seen).toEqual([keyType]);
+      }
       await env.cleanup?.();
     });
 

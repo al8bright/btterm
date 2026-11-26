@@ -37,6 +37,9 @@ export class XtermEngine implements TerminalEngine {
       scrollback: 10_000,
       minimumContrastRatio: 4.5,
       rightClickSelectsWord: false,
+      // SEC-5: OSC 8 하이퍼링크도 WebLinks와 같은 앱 확인 경로(http(s)만 + 확인창)로 연다.
+      // 없으면 xterm 기본 처리(confirm + window.open)를 탄다. 비 HTTP 링크는 받지 않는다(기본값 false)
+      linkHandler: { activate: (_event, uri) => hooks.onLink(uri) },
     });
     this.#term.loadAddon(this.#fit);
     this.#term.loadAddon(this.#search);

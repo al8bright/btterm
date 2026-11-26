@@ -46,7 +46,8 @@ import { watchFile } from './files/watchFile';
 import { loadSshConfig } from '../platform/sshConfigFiles';
 import { IPC } from '../shared/api';
 import { nodeClock } from '../shared/nodeClock';
-import { fingerprintOf, type KnownHostsStore } from './hostkeys/KnownHostsStore';
+import type { KnownHostsStore } from './hostkeys/KnownHostsStore';
+import { hostKeyPrompt } from './hostkeys/hostKeyPrompt';
 import { removalDialogOptions } from './hostkeys/removalDialog';
 import type { AppLogger } from './logging/AppLogger';
 import { ProfileError, ProfileService, type FullKeyCheck } from './profiles/ProfileService';
@@ -198,11 +199,6 @@ export class SessionBroker {
   }
 
   /** 절전 복귀·잠금 해제 뒤 살아 있는 세션을 확인한다(F6.6). 죽었으면 host가 재접속을 유도한다. */
-  /** 동기화로 서버 목록이 바뀌었을 때 화면에 알린다(F8.5) */
-  profilesChanged(): void {
-    this.#changed({});
-  }
-
   probeAll(): void {
     for (const sessionId of this.#supervisor.readySessions()) {
       this.#post({ type: 'probe', sessionId });
@@ -393,9 +389,36 @@ export class SessionBroker {
   #start(sessionId: string, params: SessionParams): void {
     const sender = this.#senders.get(sessionId);
     if (!sender || sender.isDestroyed()) return;
+    // renderer 포트는 바로 준다. 저장소를 읽는 동안 renderer가 보낸 크기·입력은 포트에 쌓였다가
+    // session host가 port1을 열 때 전달된다(포트가 늦으면 preload가 첫 크기 조정을 버린다)
     const { port1, port2 } = new MessageChannelMain();
     sender.postMessage(IPC.port, { sessionId }, [port2]);
-    this.#post({ type: 'open', sessionId, ...params, size: INITIAL_SIZE }, [port1]);
+    // SEC-3: 이미 저장된 키 종류를 함께 넘겨 서버가 그 종류를 먼저 고르게 한다(다른 종류는 차단하므로)
+    void this.#options.knownHosts
+      .knownKeyTypes(params.host, params.port)
+      .catch(() => [])
+      .then((knownHostKeyTypes) => {
+        // 저장소를 읽는 사이 탭이나 창을 닫았으면 열지 않고 닫힌 것으로 끝낸다(고아 연결 방지)
+        if (
+          sender.isDestroyed() ||
+          this.#closing.has(sessionId) ||
+          !this.#supervisor.has(sessionId)
+        ) {
+          port1.close();
+          this.#supervisor.onState(sessionId, 'closed');
+          return;
+        }
+        this.#post(
+          {
+            type: 'open',
+            sessionId,
+            ...params,
+            ...(knownHostKeyTypes.length > 0 ? { knownHostKeyTypes } : {}),
+            size: INITIAL_SIZE,
+          },
+          [port1],
+        );
+      });
   }
 
   /** 원격 셸 기록(F3.17a). 이 창이 연 ready 세션만. */
@@ -529,7 +552,10 @@ export class SessionBroker {
         this.#supervisor.onState(message.sessionId, message.state, message.errorCode);
         return;
       case 'hostKeyCheck': {
-        const accept = await this.#decideHostKey(sender, message, message.sessionId);
+        // 판정 중 오류(잘못된 저장 항목 등)는 거부로 끝낸다: 응답 없는 확인 요청으로 멈추지 않게
+        const accept = await this.#decideHostKey(sender, message, message.sessionId).catch(
+          () => false,
+        );
         this.#post({ type: 'hostKeyDecision', requestId: message.requestId, accept });
         return;
       }
@@ -572,24 +598,15 @@ export class SessionBroker {
     if (result.verdict === 'trusted') return true;
     if (result.verdict === 'revoked') return false;
 
-    const answer = await this.#prompts.request(
-      sender,
-      {
-        kind: 'hostKey',
-        verdict: result.verdict,
-        host: message.host,
-        port: message.port,
-        keyType: message.keyType,
-        fingerprint: message.fingerprint,
-        ...(result.verdict === 'mismatch'
-          ? { knownFingerprints: result.known.map((k) => fingerprintOf(k.key)) }
-          : {}),
-      },
-      sessionId,
-    );
+    const answer = await this.#prompts.request(sender, hostKeyPrompt(message, result), sessionId);
     if (result.verdict === 'mismatch' || answer.kind !== 'hostKey') return false;
     if (answer.decision === 'accept-save') {
-      await knownHosts.trust(message.host, message.port, presented);
+      // 저장하지 못하면(쓸 수 없는 이름·형식, 디스크 오류) 연결하지 않는다. 응답 없이 멈추지도 않는다
+      const saved = await knownHosts.trust(message.host, message.port, presented).then(
+        () => true,
+        () => false,
+      );
+      if (!saved) return false;
     }
     // 수락 값만 나열한다(새 결정 값이 생겨도 수락으로 새지 않게)
     return answer.decision === 'accept-once' || answer.decision === 'accept-save';

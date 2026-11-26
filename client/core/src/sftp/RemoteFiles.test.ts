@@ -135,6 +135,11 @@ describe('RemoteFiles 셸 통합 안전성(보안 리뷰 #3·#5)', () => {
       this.plain.push(path);
       await super.writeFile(path, data);
     }
+    readonly created: Array<[string, number]> = [];
+    override async createFile(path: string, data: Uint8Array, mode: number): Promise<void> {
+      this.created.push([path, mode]);
+      await super.createFile(path, data, mode);
+    }
   }
 
   function tracked() {
@@ -150,7 +155,29 @@ describe('RemoteFiles 셸 통합 안전성(보안 리뷰 #3·#5)', () => {
     expect(sftp.atomic).toEqual(
       expect.arrayContaining(['.config/btterm/shell.sh', '.bashrc', '.bash_profile']),
     );
-    expect(sftp.plain.filter((p) => !p.endsWith('.btterm-backup'))).toEqual([]);
+    expect(sftp.plain).toEqual([]);
+  });
+
+  it('F4.5 백업은 원본 권한(600)으로 처음부터 배타 생성한다: 토큰이 든 rc가 644 백업으로 새지 않게', async () => {
+    const { fs, sftp, files } = tracked();
+    fs.writeText('.bashrc', 'export GITHUB_TOKEN=x\n');
+    await sftp.chmod('.bashrc', 0o600);
+    fs.writeText('.bashrc.btterm-backup', 'old backup');
+    await sftp.chmod('.bashrc.btterm-backup', 0o644);
+    await files.installShellIntegration();
+    expect(sftp.created).toContainEqual(['.bashrc.btterm-backup', 0o600]);
+    expect(sftp.plain).toEqual([]);
+    expect((await sftp.stat('.bashrc.btterm-backup'))?.mode).toBe(0o600);
+    expect(fs.readText('.bashrc.btterm-backup')).toBe('export GITHUB_TOKEN=x\n');
+    expect((await sftp.stat('.bashrc'))?.mode).toBe(0o600);
+  });
+
+  it('F4.5 백업 권한은 원본 권한 비트(0o777)만 옮긴다', async () => {
+    const { fs, sftp, files } = tracked();
+    fs.writeText('.bashrc', 'export A=1\n');
+    await sftp.chmod('.bashrc', 0o4640);
+    await files.installShellIntegration();
+    expect((await sftp.stat('.bashrc.btterm-backup'))?.mode).toBe(0o640);
   });
 
   it('제거하기 전에도 바꾸기 직전 내용을 백업한다', async () => {

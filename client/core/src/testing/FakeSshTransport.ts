@@ -6,6 +6,7 @@ import {
   type ByteDuplex,
   type ConnectOptions,
   type FixedCommand,
+  type PresentedHostKey,
   type PtySize,
   type RemoteFileResult,
   type SshConnection,
@@ -19,12 +20,19 @@ export interface FakeSshOptions {
   users: Record<string, string>;
   /** 설정하면 hooks.keyboardInteractive로 이 프롬프트를 묻고 answer와 같으면 인증 성공 */
   keyboardInteractive?: { prompt: string; answer: string };
-  hostKey?: { keyType: string; key: string; fingerprint: string };
+  /** 서버가 가진 호스트 키(서버 선호 순서). 클라이언트가 알려진 종류를 넘기면 그 종류를 먼저 고른다 */
+  hostKeys?: PresentedHostKey[];
   /** SFTP로 읽을 홈 기준 파일. 'denied'면 권한 없음 */
   files?: Record<string, string | Uint8Array | 'denied'>;
   /** exec 명령의 출력. 없으면 `echo`만 해석한다. null이면 실패 */
   exec?: (command: string) => string | null;
 }
+
+const DEFAULT_HOST_KEY: PresentedHostKey = {
+  keyType: 'ssh-ed25519',
+  key: 'AAAAFAKEKEY',
+  fingerprint: 'SHA256:fake',
+};
 
 type Listener<T> = (value: T) => void;
 
@@ -51,6 +59,8 @@ export class FakeSshTransport implements SshTransport {
   readonly openedSftp: FakeSftp[] = [];
   /** 실행된 exec 명령 */
   readonly execCommands: string[] = [];
+  /** 마지막 connect에 넘긴 옵션 */
+  lastConnectOptions: ConnectOptions | null = null;
   readonly #options: FakeSshOptions;
   #nextFailure: SshErrorCode | null = null;
   readonly #connections = new Set<FakeConnection>();
@@ -86,16 +96,15 @@ export class FakeSshTransport implements SshTransport {
     auth: AuthMethod[],
     hooks: AuthHooks,
   ): Promise<SshConnection> {
+    this.lastConnectOptions = options;
     if (this.#nextFailure) {
       const code = this.#nextFailure;
       this.#nextFailure = null;
       throw new SshError(code);
     }
-    const hostKey = this.#options.hostKey ?? {
-      keyType: 'ssh-ed25519',
-      key: 'AAAAFAKEKEY',
-      fingerprint: 'SHA256:fake',
-    };
+    const serverKeys = this.#options.hostKeys ?? [DEFAULT_HOST_KEY];
+    const known = options.knownHostKeyTypes ?? [];
+    const hostKey = serverKeys.find((k) => known.includes(k.keyType)) ?? serverKeys[0]!;
     if (!(await hooks.verifyHostKey(hostKey))) throw new SshError('host-key-rejected');
 
     const expected = this.#options.users[options.username];

@@ -66,6 +66,8 @@ export interface OpenRequest {
   size: PtySize;
   /** 셸이 준비되면 한 번 입력 + Enter(F6.11). 재접속도 새 셸이라 다시 보낸다 */
   startupCommand?: string | undefined;
+  /** 이 호스트에 저장된 호스트 키 종류. 서버가 이 종류를 먼저 고르게 한다(SEC-3) */
+  knownHostKeyTypes?: readonly string[] | undefined;
 }
 
 const DEFAULT_FLOW = { highWaterMark: 32 * 1024, lowWaterMark: 8 * 1024 };
@@ -109,6 +111,9 @@ export class HostSession {
           port: request.port,
           username: request.username,
           keepaliveSec: request.keepaliveSec,
+          ...(request.knownHostKeyTypes?.length
+            ? { knownHostKeyTypes: request.knownHostKeyTypes }
+            : {}),
         },
         request.auth,
         {

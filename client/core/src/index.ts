@@ -7,6 +7,7 @@ export * from './terminal/OutputCoalescer';
 export * from './terminal/AckFlowController';
 export * from './ssh/knownHosts';
 export * from './ssh/HostKeyPolicy';
+export * from './ssh/hostKeyAlgorithms';
 export * from './ssh/SshTransport';
 export * from './domain/model';
 export * from './domain/appSettings';

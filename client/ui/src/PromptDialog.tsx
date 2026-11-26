@@ -123,8 +123,19 @@ function HostKeyDialog({
     onRespond({ kind: 'hostKey', decision });
   const store = useStore();
   const mismatch = prompt.verdict === 'mismatch';
+  // SEC-3: 다른 종류의 키만 알려진 호스트가 새 종류를 내밀었다(종류 다운그레이드 의심)
+  const otherType = mismatch && prompt.mismatchReason === 'other-type-known';
   const command = removeCommand(prompt.host, prompt.port);
   const target = `${prompt.host}:${prompt.port}`;
+  const title = otherType
+    ? t('hostkey.typeMismatch.title')
+    : t(mismatch ? 'hostkey.mismatch.title' : 'hostkey.unknown.title');
+  const body = otherType
+    ? t('hostkey.typeMismatch.body', {
+        known: (prompt.knownKeyTypes ?? []).join(', '),
+        presented: prompt.keyType,
+      })
+    : t(mismatch ? 'hostkey.mismatch.body' : 'hostkey.unknown.body');
   return (
     <Modal onCancel={() => decide('reject')}>
       <div
@@ -132,9 +143,9 @@ function HostKeyDialog({
         role="alertdialog"
         aria-labelledby="hk-title"
       >
-        <h2 id="hk-title">{t(mismatch ? 'hostkey.mismatch.title' : 'hostkey.unknown.title')}</h2>
+        <h2 id="hk-title">{title}</h2>
         <p>
-          {target} · {t(mismatch ? 'hostkey.mismatch.body' : 'hostkey.unknown.body')}
+          {target} · {body}
         </p>
         {mismatch &&
           prompt.knownFingerprints?.map((fp) => (

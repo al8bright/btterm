@@ -4,6 +4,8 @@ import {
   decodeBase64,
   evaluateHostKey,
   formatFingerprint,
+  KNOWN_HOST_KEY_TYPE,
+  knownKeyTypes,
   lookupName,
   parseKnownHosts,
   removeKnownHostLine,
@@ -14,6 +16,14 @@ import {
   type KnownHostView,
 } from '@btterm/core';
 import { writeTextAtomic } from '../store/atomicWrite';
+
+/**
+ * known_hosts에 쓸 수 있는 호스트 이름(SEC-3): 영숫자·. _ : % - 만.
+ * 공백·쉼표·제어문자·줄바꿈(다른 항목 끼워 넣기), 패턴 문자(* ? !), 맨 앞 | @ #(해시·표시·주석), 괄호를 막는다.
+ */
+const SAFE_HOST = /^[A-Za-z0-9._:%-]{1,255}$/;
+const BASE64_KEY = /^[A-Za-z0-9+/]{1,16384}={0,2}$/;
+const MAX_KNOWN_KEY_TYPES = 16;
 
 const hmacSha1: HmacSha1 = (key, data) =>
   new Uint8Array(createHmac('sha1', key).update(data).digest());
@@ -38,11 +48,27 @@ export class KnownHostsStore {
   ) {}
 
   async evaluate(host: string, port: number, presented: HostKey): Promise<HostKeyVerdict> {
-    const entries = [...(await readEntries(this.appFile)), ...(await readEntries(this.userFile))];
-    return evaluateHostKey(entries, host, port, presented, hmacSha1);
+    return evaluateHostKey(await this.#entries(), host, port, presented, hmacSha1);
   }
 
+  /**
+   * 이 호스트에 저장된 키 종류(SEC-3). 연결 때 서버가 이 종류를 먼저 고르도록 session host로 넘긴다.
+   * 경계 스키마를 통과하지 못할 이상한 종류는 뺀다.
+   */
+  async knownKeyTypes(host: string, port: number): Promise<string[]> {
+    return knownKeyTypes(await this.#entries(), host, port, hmacSha1)
+      .filter((type) => KNOWN_HOST_KEY_TYPE.test(type))
+      .slice(0, MAX_KNOWN_KEY_TYPES);
+  }
+
+  /** 한 줄로 덧붙인다. 공백·쉼표·줄바꿈·패턴 문자로 다른 항목을 끼워 넣지 못하게 먼저 검사한다(SEC-3) */
   trust(host: string, port: number, key: HostKey): Promise<void> {
+    if (!SAFE_HOST.test(host)) {
+      return Promise.reject(new Error('known_hosts에 쓸 수 없는 호스트 이름'));
+    }
+    if (!KNOWN_HOST_KEY_TYPE.test(key.keyType) || !BASE64_KEY.test(key.key)) {
+      return Promise.reject(new Error('known_hosts에 쓸 수 없는 키 형식'));
+    }
     return this.#serial(() =>
       appendFile(this.appFile, `${lookupName(host, port)} ${key.keyType} ${key.key}\n`, 'utf8'),
     );
@@ -93,6 +119,10 @@ export class KnownHostsStore {
     });
   }
 
+  async #entries(): Promise<KnownHostsEntry[]> {
+    return [...(await readEntries(this.appFile)), ...(await readEntries(this.userFile))];
+  }
+
   #serial<T>(run: () => Promise<T>): Promise<T> {
     const next = this.#writes.then(run, run);
     this.#writes = next.catch(() => undefined);
@@ -101,7 +131,7 @@ export class KnownHostsStore {
 }
 
 /** 잘못된 키 줄이 하나 있어도 목록 전체가 실패하지 않게(보안 리뷰 L-2) */
-function safeFingerprint(base64Key: string): string {
+export function safeFingerprint(base64Key: string): string {
   try {
     return fingerprintOf(base64Key);
   } catch {

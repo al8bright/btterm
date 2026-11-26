@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import {
+  filesOpResultSchema,
   findSecretFields,
+  KBD_INSTRUCTIONS_MAX,
+  KBD_NAME_MAX,
+  KBD_PROMPT_MAX,
   HistoryResultSchema,
   HostToMainControlSchema,
   HostToRendererFrameSchema,
@@ -120,6 +124,85 @@ describe('IPC 계약', () => {
       },
     });
     expect(ok.success).toBe(true);
+  });
+
+  it('SEC-3 AC10 호스트 키 차단 창은 사유(키 변경·다른 종류 알려짐)와 알려진 종류를 담는다', () => {
+    const prompt = (extra: Record<string, unknown>) =>
+      PromptSchema.safeParse({
+        kind: 'hostKey',
+        verdict: 'mismatch',
+        host: 'db-01',
+        port: 22,
+        keyType: 'ssh-rsa',
+        fingerprint: 'SHA256:abc',
+        knownFingerprints: ['SHA256:old'],
+        ...extra,
+      }).success;
+    expect(prompt({ mismatchReason: 'other-type-known', knownKeyTypes: ['ssh-ed25519'] })).toBe(
+      true,
+    );
+    expect(prompt({ mismatchReason: 'key-changed' })).toBe(true);
+    expect(prompt({ mismatchReason: 'whatever' })).toBe(false);
+    expect(prompt({ keyType: 'x'.repeat(65) })).toBe(false);
+    expect(prompt({ knownKeyTypes: ['x'.repeat(65)] })).toBe(false);
+  });
+
+  it('SEC-3 open 메시지는 알려진 호스트 키 종류를 형식·개수 제한해 담는다', () => {
+    const open = (knownHostKeyTypes: unknown) =>
+      MainToHostControlSchema.safeParse({
+        type: 'open',
+        sessionId: 's1',
+        host: '127.0.0.1',
+        port: 2222,
+        username: 'btterm',
+        keepaliveSec: 30,
+        auth: [],
+        size: { cols: 80, rows: 24 },
+        knownHostKeyTypes,
+      }).success;
+    expect(open(['ssh-ed25519', 'ssh-ed25519-cert-v01@openssh.com'])).toBe(true);
+    expect(open(undefined)).toBe(true);
+    expect(open(['SSH-RSA'])).toBe(false);
+    expect(open(['ssh-rsa x'])).toBe(false);
+    expect(open(Array.from({ length: 17 }, (_, i) => `t${i}`))).toBe(false);
+  });
+
+  it('호스트 키 종류·keyboard-interactive 문자열에 길이 상한이 있다', () => {
+    const toMain = (raw: unknown) => HostToMainControlSchema.safeParse(raw).success;
+    const hostKey = {
+      type: 'hostKeyCheck',
+      requestId: 'r1',
+      sessionId: 's1',
+      host: 'h',
+      port: 22,
+      keyType: 'ssh-ed25519',
+      key: 'AAAA',
+      fingerprint: 'SHA256:x',
+    };
+    expect(toMain(hostKey)).toBe(true);
+    expect(toMain({ ...hostKey, keyType: 'k'.repeat(65) })).toBe(false);
+    const kbd = {
+      type: 'kbdPrompt',
+      requestId: 'r',
+      sessionId: 's1',
+      name: 'n',
+      instructions: 'i',
+      prompts: [{ prompt: 'Code: ', echo: false }],
+    };
+    expect(toMain(kbd)).toBe(true);
+    expect(toMain({ ...kbd, name: 'n'.repeat(KBD_NAME_MAX + 1) })).toBe(false);
+    expect(toMain({ ...kbd, instructions: 'i'.repeat(KBD_INSTRUCTIONS_MAX + 1) })).toBe(false);
+    expect(
+      toMain({ ...kbd, prompts: [{ prompt: 'p'.repeat(KBD_PROMPT_MAX + 1), echo: false }] }),
+    ).toBe(false);
+    const prompt = {
+      kind: 'keyboardInteractive',
+      host: 'h',
+      name: 'n'.repeat(KBD_NAME_MAX + 1),
+      instructions: '',
+      prompts: [],
+    };
+    expect(PromptSchema.safeParse(prompt).success).toBe(false);
   });
 
   it('main → session host open 제어 메시지를 검증한다', () => {
@@ -460,6 +543,26 @@ describe('IPC 계약', () => {
         },
       }).success,
     ).toBe(true);
+  });
+
+  it('F4 파일 작업 결과는 작업 종류별 스키마로 검증한다(session host → main → renderer)', () => {
+    const ok = (kind: Parameters<typeof filesOpResultSchema>[0], value: unknown) =>
+      filesOpResultSchema(kind).safeParse(value).success;
+    const entry = { name: 'a.txt', type: 'file', size: 3, mtimeMs: 0, mode: 0o644 };
+    expect(ok('list', { path: '/home/u', entries: [entry] })).toBe(true);
+    expect(ok('list', { path: '/home/u', entries: [{ ...entry, type: 'socket' }] })).toBe(false);
+    expect(ok('list', { path: '/home/u', entries: [{ ...entry, mode: 0o170000 }] })).toBe(false);
+    expect(ok('list', { path: '/home/u', entries: [{ ...entry, name: '' }] })).toBe(false);
+    expect(ok('list', { path: '/home/u', entries: [entry], extra: '<script>' })).toBe(false);
+    expect(ok('list', '<img onerror>')).toBe(false);
+    expect(ok('mkdir', null)).toBe(true);
+    expect(ok('mkdir', { anything: 1 })).toBe(false);
+    const status = { installed: true, rcFiles: ['.bashrc'], loginCovered: null };
+    expect(ok('shellStatus', status)).toBe(true);
+    expect(ok('shellInstall', { ...status, loginCovered: 'yes' })).toBe(false);
+    expect(ok('installKey', { added: true })).toBe(true);
+    expect(ok('installKey', { added: 'true' })).toBe(false);
+    expect(Object.values(RENDERER_BOUND_SCHEMAS)).toContain(filesOpResultSchema('list'));
   });
 
   it('설정 기본값은 스키마를 통과한다', () => {

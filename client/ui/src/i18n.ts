@@ -39,6 +39,9 @@ const ko = {
     '이 서버가 전에 저장한 키와 다른 키를 보냈습니다. 서버를 다시 설치했거나 누군가 연결을 가로채고 있을 수 있습니다. 서버 관리자에게 확인하기 전에는 연결하지 마세요.',
   'hostkey.mismatch.hint':
     '서버를 다시 설치한 것이 확실하면 알려진 호스트에서 저장된 키를 지운 뒤 다시 연결하세요. ~/.ssh/known_hosts에 있는 키라면 터미널에서 {command}로 지웁니다.',
+  'hostkey.typeMismatch.title': '호스트 키 종류가 다릅니다',
+  'hostkey.typeMismatch.body':
+    '이 서버는 {known} 키로 저장돼 있는데 다른 종류({presented})의 키를 보냈습니다. 누군가 연결을 가로채고 있을 수 있습니다. 서버 관리자에게 확인하기 전에는 연결하지 마세요.',
   'hostkey.mismatch.hintNoCommand':
     '서버를 다시 설치한 것이 확실하면 알려진 호스트에서 저장된 키를 지운 뒤 다시 연결하세요.',
   'hostkey.known': '저장된 키',

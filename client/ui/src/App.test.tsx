@@ -423,6 +423,41 @@ describe('App 셸', () => {
       expect(screen.getByRole('dialog', { name: '알려진 호스트' })).toBeTruthy();
     });
 
+    it('SEC-3 AC10 다른 종류의 키만 알려진 호스트가 새 종류를 내밀면 종류가 다르다고 알리고 차단만 한다', async () => {
+      const { api } = setup();
+      act(() =>
+        api.emit({
+          type: 'prompt.request',
+          promptId: 'hk',
+          prompt: {
+            kind: 'hostKey',
+            verdict: 'mismatch',
+            mismatchReason: 'other-type-known',
+            host: 'h1',
+            port: 22,
+            keyType: 'ssh-rsa',
+            fingerprint: 'SHA256:new',
+            knownFingerprints: ['SHA256:old'],
+            knownKeyTypes: ['ssh-ed25519'],
+          },
+        }),
+      );
+      const dialog = screen.getByRole('alertdialog', { name: '호스트 키 종류가 다릅니다' });
+      expect(dialog.textContent).toContain('ssh-ed25519');
+      expect(dialog.textContent).toContain('ssh-rsa SHA256:new');
+      expect(dialog.textContent).toContain('SHA256:old');
+      expect(within(dialog).queryByRole('button', { name: /저장|이번만/ })).toBeNull();
+      expect(document.activeElement).toBe(
+        within(dialog).getByRole('button', { name: '연결 취소' }),
+      );
+      fireEvent.keyDown(document.body, { key: 'Escape' });
+      await flush();
+      expect(api.requestsOf('prompt.respond')[0]?.response).toEqual({
+        kind: 'hostKey',
+        decision: 'reject',
+      });
+    });
+
     it('TR6 보안 리뷰 L-4: 셸 특수문자가 든 호스트는 복사용 명령을 보여 주지 않는다', () => {
       const { api } = setup();
       act(() =>

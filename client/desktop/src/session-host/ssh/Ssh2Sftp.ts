@@ -18,6 +18,11 @@ const S_IFDIR = 0o040000;
 const S_IFREG = 0o100000;
 const S_IFLNK = 0o120000;
 
+/** 새로 만드는 rc·스크립트 권한(F4.5): 비밀이 들 수 있으니 본인만 */
+const NEW_FILE_MODE = 0o600;
+/** SFTP 쓰기 한 번의 크기(서버 최대 패킷보다 작게) */
+const WRITE_CHUNK = 32 * 1024;
+
 function toError(error: Error & { code?: unknown }): SftpError {
   let code: SftpErrorCode = 'failure';
   if (error.code === NO_SUCH_FILE) code = 'missing';
@@ -32,8 +37,9 @@ function toEntry(name: string, stats: Stats): RemoteEntry {
     name,
     type:
       kind === S_IFDIR ? 'dir' : kind === S_IFREG ? 'file' : kind === S_IFLNK ? 'link' : 'other',
-    size: stats.size,
-    mtimeMs: stats.mtime * 1000,
+    // 서버가 크기·시각을 주지 않으면(속성 플래그 없음) NaN이 되지 않게 0으로 둔다(경계 스키마)
+    size: Number.isFinite(stats.size) ? stats.size : 0,
+    mtimeMs: Number.isFinite(stats.mtime) ? stats.mtime * 1000 : 0,
     mode: stats.mode & 0o7777,
   };
 }
@@ -132,14 +138,41 @@ export class Ssh2Sftp implements SftpSession {
     );
   }
 
+  /** 배타 생성(wx) + 처음부터 mode. umask로 줄어든 권한은 핸들로 다시 맞춘다(경로를 다시 따라가지 않게) */
+  async createFile(path: string, data: Uint8Array, mode: number): Promise<void> {
+    const perm = mode & 0o777;
+    const handle = await this.#call<Buffer>((done) =>
+      this.sftp.open(path, 'wx', { mode: perm }, done),
+    );
+    try {
+      await this.#call((done) => this.sftp.fchmod(handle, perm, done));
+      const buffer = Buffer.from(data);
+      let offset = 0;
+      while (offset < buffer.length) {
+        const length = Math.min(buffer.length - offset, WRITE_CHUNK);
+        await this.#call((done) => this.sftp.write(handle, buffer, offset, length, offset, done));
+        offset += length;
+      }
+    } catch (error) {
+      await this.#call((done) => this.sftp.close(handle, done)).catch(() => undefined);
+      await this.removeFile(path).catch(() => undefined);
+      throw error;
+    }
+    await this.#call((done) => this.sftp.close(handle, done));
+  }
+
   async writeFileAtomic(path: string, data: Uint8Array): Promise<void> {
     // 링크(dotfile 관리 도구 등)는 링크 자체가 아니라 가리키는 파일을 바꾼다.
     const existing = await this.stat(path);
     const target = existing?.type === 'link' ? await this.realpath(path) : path;
+    const current = existing?.type === 'link' ? await this.stat(target) : existing;
+    // 바꿔 넣으면 임시 파일의 권한이 남으므로 원래 권한(링크면 대상의 권한)으로 처음부터 만든다(F4.5)
+    const mode = current ? current.mode & 0o777 : NEW_FILE_MODE;
     const temp = `${target}.btterm-tmp`;
-    await this.writeFile(temp, data);
+    // 지난번에 끊겨 남은 임시 파일은 이름만 지운다(링크면 링크만). 배타 생성이 실패하지 않게
+    if (await this.stat(temp)) await this.removeFile(temp);
+    await this.createFile(temp, data, mode);
     try {
-      if (existing && existing.type !== 'link') await this.chmod(temp, existing.mode);
       await this.#replace(temp, target);
     } catch (error) {
       await this.removeFile(temp).catch(() => undefined);

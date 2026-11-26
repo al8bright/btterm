@@ -4,6 +4,7 @@ import type { WebContents } from 'electron';
 import { LocalEdits } from './LocalEdits';
 import {
   baseRemote,
+  filesOpResultSchema,
   type HostFilesOp,
   type LocalPlatform,
   type TransferState,
@@ -273,7 +274,10 @@ export class FileRelay {
         this.#pending.delete(requestId);
         resolve(result);
       };
-      this.#pending.set(requestId, settle);
+      // session host 결과는 작업 종류별 스키마로 검증한 뒤에만 renderer로 넘긴다(AGENTS §3, 심층 방어)
+      this.#pending.set(requestId, (result) =>
+        settle(result.ok ? checkedResult(op.kind, result.result) : result),
+      );
       this.#deps.post({ type: 'files', requestId, sessionId, op });
     });
   }
@@ -292,4 +296,11 @@ export class FileRelay {
     });
     return { ok: true, transferIds };
   }
+}
+
+function checkedResult(kind: HostFilesOp['kind'], value: unknown): OpResult {
+  const parsed = filesOpResultSchema(kind).safeParse(value);
+  return parsed.success
+    ? { ok: true, result: parsed.data }
+    : { ok: false, error: 'invalid-result' };
 }

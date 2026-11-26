@@ -71,9 +71,14 @@ export function removeKnownHostLine(
   return { text: lines.join('\n'), removed: true };
 }
 
-/** known_hosts에서 찾는 이름. 포트 22가 아니면 [host]:port 형식이다. */
+/**
+ * known_hosts에서 찾는 이름. 포트 22가 아니면 [host]:port 형식이다.
+ * OpenSSH처럼 소문자로 바꾼다: 해시 항목(|1|)은 소문자 이름으로 만들어지므로 대문자가 섞인
+ * 이름으로 찾으면 저장된 키를 못 찾아 "처음 보는 호스트"로 보인다(SEC-3).
+ */
 export function lookupName(host: string, port: number): string {
-  return port === 22 ? host : `[${host}]:${port}`;
+  const name = host.toLowerCase();
+  return port === 22 ? name : `[${name}]:${port}`;
 }
 
 export function matchesHost(entry: KnownHostsEntry, name: string, hmac: HmacSha1): boolean {

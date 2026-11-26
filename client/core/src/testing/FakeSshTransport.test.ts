@@ -3,7 +3,12 @@ import { FakeSshTransport } from './FakeSshTransport';
 import { describeSshTransportContract } from './sshTransportContract';
 import { SshError } from '../ssh/SshTransport';
 
-const create = () => new FakeSshTransport({ users: { alice: 'pw' } });
+const SERVER_KEYS = [
+  { keyType: 'ssh-ed25519', key: 'AAAAFAKEED', fingerprint: 'SHA256:fake-ed' },
+  { keyType: 'ecdsa-sha2-nistp256', key: 'AAAAFAKEEC', fingerprint: 'SHA256:fake-ec' },
+  { keyType: 'ssh-rsa', key: 'AAAAFAKERSA', fingerprint: 'SHA256:fake-rsa' },
+];
+const create = () => new FakeSshTransport({ users: { alice: 'pw' }, hostKeys: SERVER_KEYS });
 
 describeSshTransportContract('Fake', async () => ({
   transport: create(),
@@ -11,6 +16,7 @@ describeSshTransportContract('Fake', async () => ({
   port: 22,
   username: 'alice',
   password: 'pw',
+  hostKeyTypes: SERVER_KEYS.map((k) => k.keyType),
 }));
 
 describe('FakeSshTransport 고유 동작', () => {

@@ -48,6 +48,12 @@ describe('lookupName', () => {
   it('다른 포트는 [host]:port', () => {
     expect(lookupName('web-01', 2222)).toBe('[web-01]:2222');
   });
+
+  it('SEC-3 호스트 이름은 OpenSSH처럼 소문자로 찾는다(해시 항목은 소문자 이름으로 만들어진다)', () => {
+    expect(lookupName('Web-01.CORP', 22)).toBe('web-01.corp');
+    expect(lookupName('Web-01', 2222)).toBe('[web-01]:2222');
+    expect(lookupName('FE80::1', 2222)).toBe('[fe80::1]:2222');
+  });
 });
 
 describe('matchesHost', () => {

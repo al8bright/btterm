@@ -77,6 +77,21 @@ describe('HostSession', () => {
     session.close();
   });
 
+  it('SEC-3 알려진 호스트 키 종류를 SSH 엔진 연결 옵션으로 넘긴다', async () => {
+    const { transport, session } = setup();
+    await session.open({
+      host: 'h',
+      port: 22,
+      username: 'alice',
+      keepaliveSec: 0,
+      auth: [{ kind: 'password', password: 'pw' }],
+      size: { cols: 80, rows: 24 },
+      knownHostKeyTypes: ['ecdsa-sha2-nistp256'],
+    });
+    expect(transport.lastConnectOptions?.knownHostKeyTypes).toEqual(['ecdsa-sha2-nistp256']);
+    session.close();
+  });
+
   it('AC9 호스트 키를 거부하면 failed(host-key-rejected)를 보고하고 자원을 해제한다', async () => {
     const { states, port, open } = setup({ accept: false });
     await open();

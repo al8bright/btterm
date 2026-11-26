@@ -12,6 +12,11 @@ export interface ConnectOptions {
   username: string;
   keepaliveSec: number;
   readyTimeoutMs?: number;
+  /**
+   * 이 호스트에 이미 저장된 호스트 키 종류(known_hosts 표기). 서버가 이 종류를 먼저 고르게 협상한다(SEC-3).
+   * 다른 종류의 키는 차단하므로, 정상 서버가 오탐으로 막히지 않게 한다. 없으면 엔진 기본값.
+   */
+  knownHostKeyTypes?: readonly string[] | undefined;
 }
 
 /** 비밀 값은 session host 안에서만 존재한다(SEC-1). */
